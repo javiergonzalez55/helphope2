@@ -1,0 +1,30 @@
+Etapa 1 — Diagnóstico
+Escopo desta iteração: análise estática da estrutura atual, tomando o README.md como fonte única de verdade e focando nas histórias 4, 6 e 7. Não executei testes nem alterei arquivos; portanto, esta etapa identifica evidências e lacunas no código, mas não mede desempenho em execução.
+
+Resposta direta
+O sistema ainda não atende integralmente aos critérios de aceite das histórias 4, 6 e 7. Há uma base funcional — autenticação de sessão, endpoints em PHP, consultas parametrizadas e operações de cadastro —, mas os fluxos de edição de solicitações e de relacionamento entre doação e solicitação têm lacunas explícitas. Também há divergências entre a interface atual e os painéis descritos no README. Não é possível concluir sobre eficiência sem execução e medição.
+
+O que a estrutura atual já preserva
+Arquitetura cliente-servidor: a interface React chama endpoints PHP, que acessam o banco via PDO. O frontend não se conecta diretamente ao banco.
+Contrato HTTP/JSON: a comunicação usa apiRequest no frontend, e a API responde em JSON.
+Autenticação em endpoints: os fluxos de consulta e alteração exigem uma sessão autenticada.
+Vínculo de propriedade em operações: as consultas “mine” filtram pelo usuário; alterações e exclusões de doações e exclusões de solicitações verificam o proprietário, com exceção para administrador.
+Dados básicos dos itens: doações e solicitações recebem categoria, descrição, quantidade, unidade e status; a API verifica se a categoria existe e usa consultas parametrizadas.
+Fluxos básicos da interface: existem formulários para criar e editar doações e solicitações, além de ações de exclusão.
+Esses elementos aparecem principalmente em frontend/src/App.jsx, backend/api/donations.php e backend/api/requests.php.
+
+Lacunas e arquivos que devem ser investigados ou alterados
+História	Diagnóstico em relação ao README	Arquivos relacionados
+4 — Painel do doador	A interface lista itens em cartões, não em tabela. O README pede tabela com categoria, descrição, quantidade, unidade e status, além de solicitações compatíveis e seleção/confirmação. O fluxo carregado por loadDonations e loadRequests usa mode=mine, então não representa, por si só, a consulta de solicitações disponíveis compatíveis descrita para o doador.	frontend/src/App.jsx, mesmo arquivo, formulários e listagens, backend/api/donations.php
+4 — Edição de doação	A tela de edição depende de category_id, mas a consulta “mine” de doações retorna category_name sem incluir category_id. Ao iniciar edição, a categoria pode ficar vazia, embora o campo seja obrigatório. Isso pode impedir salvar a edição sem selecionar novamente a categoria.	backend/api/donations.php, frontend/src/App.jsx
+6 — Painel da instituição	A interface também mostra cartões, enquanto o README exige tabelas com informações específicas. Além disso, o frontend envia PUT para editar solicitações, mas requests.php não possui tratamento para PUT; ao final, métodos não tratados recebem resposta de método não permitido. Assim, o fluxo de edição solicitado não está completo no backend.	frontend/src/App.jsx, backend/api/requests.php, listagem em frontend/src/App.jsx
+6 — Edição de solicitação	Assim como nas doações, startRequestEdit precisa de category_id, mas a consulta própria de solicitações mostrada no endpoint não seleciona esse campo. Isso pode deixar a categoria vazia ao editar.	backend/api/requests.php, frontend/src/App.jsx
+6 — Solicitações encerradas e acesso da instituição	O endpoint de exclusão remove a solicitação do banco. O README também estabelece que solicitações encerradas devem permanecer registradas para histórico; é necessário verificar e preservar essa regra ao definir o comportamento de exclusão. Além disso, o cadastro verifica o tipo instituicao, mas não há nessa operação verificação visível de que a instituição está validada, requisito do fluxo descrito no README.	backend/api/requests.php, exclusão em backend/api/requests.php
+7 — Relacionamento e compatibilidade	O frontend consultado não implementa uma seleção de solicitação compatível pelo doador nem de doação compatível pela instituição. Nos fluxos inspecionados também não há operação explícita de associação e confirmação que valide categoria, atualize os status correspondentes e registre o relacionamento para rastreabilidade. Portanto, os critérios da história 7 não estão demonstrados pela estrutura atual.	frontend/src/App.jsx, backend/api/donations.php, backend/api/requests.php
+7 — Regras de status	A interface permite alterar status diretamente nos formulários. O README descreve status e transições vinculados ao fluxo de compatibilidade; o código inspecionado não demonstra que essas transições dependam de uma associação válida ou que sejam protegidas por um fluxo único no servidor.	Formulários em frontend/src/App.jsx e frontend/src/App.jsx; validações em backend/api/donations.php
+As regras e critérios usados nesta comparação estão em História 4 do README, História 6 e História 7.
+
+Síntese da arquitetura atual
+A separação React → HTTP/JSON → PHP → MySQL está presente. Porém, App.jsx concentra carregamento de dados, estado, regras de interface e diversos fluxos, enquanto a lógica de negócio fica distribuída entre os endpoints. Para este diagnóstico, o ponto central não é propor uma reorganização: é identificar que os contratos atuais ainda não cobrem por completo as operações exigidas pelo README — especialmente edição de solicitações e associação compatível.
+
+Conclusão da etapa 1: histórias 4, 6 e 7 têm componentes parciais implementados, mas não há base para considerá-las integralmente aceitas. A etapa seguinte do harness deverá caracterizar os comportamentos existentes, especialmente edição de ambos os recursos, isolamento por proprietário, visibilidade por categoria, validação de instituição e transições/registro do relacionamento — sempre em confronto com o README.

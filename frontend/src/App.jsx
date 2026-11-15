@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiRequest } from './services/api';
 
 const emptyAuth = {
@@ -62,12 +62,6 @@ export default function App() {
     const isInstitution = user?.type === 'instituicao';
     const isAdmin = user?.type === 'admin';
 
-    useEffect(() => {
-        if (!user) return;
-        localStorage.setItem('helphope_user', JSON.stringify(user));
-        loadAllData();
-    }, [user]);
-
     const loadCategories = async () => {
         const response = await apiRequest('categories.php', 'GET');
         setCategories(response.data?.categories || []);
@@ -94,25 +88,31 @@ export default function App() {
         setDashboard(response.data || { stats: {}, ranking: [], history: [] });
     };
 
-    const loadAllData = async () => {
+    const loadAllData = useCallback(async () => {
         setLoading(true);
         setError('');
 
         try {
-            await loadCategories();
-            await loadDashboard();
-            await loadDonations();
-            await loadRequests();
-
-            if (isAdmin) {
-                await loadPendingUsers();
-            }
+            await Promise.all([
+                loadCategories(),
+                loadDashboard(),
+                loadDonations(),
+                loadRequests(),
+                isAdmin ? loadPendingUsers() : Promise.resolve(),
+            ]);
         } catch (err) {
             setError(err.message);
         } finally {
             setLoading(false);
         }
-    };
+    }, [isAdmin]);
+
+    useEffect(() => {
+        if (!user) return;
+
+        localStorage.setItem('helphope_user', JSON.stringify(user));
+        loadAllData();
+    }, [user, loadAllData]);
 
     const handleAuthChange = (event) => {
         const { name, value, type, checked } = event.target;

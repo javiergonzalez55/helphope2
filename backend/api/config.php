@@ -2,9 +2,10 @@
 session_start();
 
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Origin: http://localhost:5173');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
+header('Access-Control-Allow-Credentials: true');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(204);
@@ -102,7 +103,7 @@ function ensure_default_admin(): void
         '00000000000',
         'admin@helphope.com',
         '11999999999',
-        password_hash('Admin@123', PASSWORD_DEFAULT),
+        password_hash('admin123', PASSWORD_DEFAULT),
         'admin',
         'ativo',
         1,
