@@ -8,6 +8,7 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost',
         changeOrigin: true,
+        secure: false,
         rewrite: (path) =>
           path.replace(/^\/api/, '/helphope2/backend/api'),
       },
