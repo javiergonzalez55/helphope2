@@ -6,17 +6,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $mode = $_GET['mode'] ?? 'mine';
 
     if ($mode === 'all') {
-        $stmt = $pdo->prepare('SELECT d.id, d.title, d.description, d.quantity, d.unit, d.status, d.created_at, u.name AS donor_name, c.name AS category_name FROM donations d INNER JOIN users u ON u.id = d.user_id INNER JOIN categories c ON c.id = d.category_id ORDER BY d.created_at DESC');
+        $stmt = $pdo->prepare('SELECT d.id, d.category_id, d.title, d.description, d.quantity, d.unit, d.status, d.created_at, u.name AS donor_name, c.name AS category_name FROM donations d INNER JOIN users u ON u.id = d.user_id INNER JOIN categories c ON c.id = d.category_id ORDER BY d.created_at DESC');
         $stmt->execute();
         json_response(true, 'Doações carregadas.', ['donations' => $stmt->fetchAll()], 200);
     }
 
-    $stmt = $pdo->prepare('SELECT d.id, d.title, d.description, d.quantity, d.unit, d.status, d.created_at, c.name AS category_name FROM donations d INNER JOIN categories c ON c.id = d.category_id WHERE d.user_id = :user_id ORDER BY d.created_at DESC');
+    $stmt = $pdo->prepare('SELECT d.id, d.category_id, d.title, d.description, d.quantity, d.unit, d.status, d.created_at, c.name AS category_name FROM donations d INNER JOIN categories c ON c.id = d.category_id WHERE d.user_id = :user_id ORDER BY d.created_at DESC');
     $stmt->execute([':user_id' => $user['id']]);
     json_response(true, 'Minhas doações carregadas.', ['donations' => $stmt->fetchAll()], 200);
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $user = require_auth();
     $data = json_decode(file_get_contents('php://input'), true);
     if (!is_array($data)) {
@@ -27,21 +27,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         json_response(false, 'Apenas doadores podem cadastrar doações.', [], 403);
     }
 
+    if (($user['type'] ?? '') === 'empresa') {
++        $companyStmt = $pdo->prepare(
++            'SELECT status, is_validated FROM users WHERE id = :id AND type = :type LIMIT 1'
++        );
++        $companyStmt->execute([
++            ':id' => $user['id'],
++            ':type' => 'empresa',
++        ]);
++        $company = $companyStmt->fetch();
++
++        if (!$company || $company['status'] !== 'ativo' || (int) $company['is_validated'] !== 1) {
++            json_response(false, 'Apenas empresas validadas podem cadastrar doações.', [], 403);
++        }
++    }
+
     $categoryId = (int) ($data['category_id'] ?? 0);
     $title = normalize_string($data['title'] ?? '');
     $description = normalize_string($data['description'] ?? '');
     $quantity = (float) ($data['quantity'] ?? 0);
     $unit = normalize_string($data['unit'] ?? '');
     $status = normalize_string($data['status'] ?? 'disponivel');
-
     if ($categoryId <= 0 || !$title || !$description || $quantity <= 0 || !$unit) {
         json_response(false, 'Preencha todos os campos da doação.', [], 400);
     }
 
-    $allowedStatuses = ['disponivel', 'solicitada', 'concluida', 'cancelada'];
-    if (!in_array($status, $allowedStatuses, true)) {
-        json_response(false, 'Status inválido.', [], 400);
-    }
+    
+    if ($status !== 'disponivel') {
++        json_response(false, 'Uma nova doação deve iniciar com status disponível.', [], 400);
+     }
 
     $stmt = $pdo->prepare('SELECT id FROM categories WHERE id = :id LIMIT 1');
     $stmt->execute([':id' => $categoryId]);
@@ -98,10 +112,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
         json_response(false, 'Preencha todos os campos da doação.', [], 400);
     }
 
-    $allowedStatuses = ['disponivel', 'solicitada', 'concluida', 'cancelada'];
-    if (!in_array($status, $allowedStatuses, true)) {
-        json_response(false, 'Status inválido.', [], 400);
-    }
+    $categoryStmt = $pdo->prepare('SELECT id FROM categories WHERE id = :id LIMIT 1');
++    $categoryStmt->execute([':id' => $categoryId]);
++    if (!$categoryStmt->fetch()) {
++        json_response(false, 'Categoria não encontrada.', [], 404);
++    }
++
+     $allowedStatuses = ['disponivel', 'solicitada', 'concluida', 'cancelada'];
+     if (!in_array($status, $allowedStatuses, true)) {
+         json_response(false, 'Status inválido.', [], 400);
+     }
 
     $stmt = $pdo->prepare('UPDATE donations SET category_id = :category_id, title = :title, description = :description, quantity = :quantity, unit = :unit, status = :status WHERE id = :id');
     $stmt->execute([
