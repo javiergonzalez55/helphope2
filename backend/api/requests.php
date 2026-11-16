@@ -6,10 +6,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $mode = $_GET['mode'] ?? 'mine';
 
     if ($mode === 'open') {
-        $stmt = $pdo->prepare('SELECT r.id, r.title, r.description, r.quantity, r.unit, r.status, r.created_at, u.name AS institution_name, c.name AS category_name FROM requests r INNER JOIN users u ON u.id = r.user_id INNER JOIN categories c ON c.id = r.category_id WHERE r.status = :status ORDER BY r.created_at DESC');
-        $stmt->execute([':status' => 'aberta']);
-        json_response(true, 'Solicitações abertas carregadas.', ['requests' => $stmt->fetchAll()], 200);
-    }
++        $stmt = $pdo->prepare('SELECT r.id, r.category_id, r.title, r.description, r.quantity, r.unit, r.status, r.created_at, u.name AS institution_name, c.name AS category_name FROM requests r INNER JOIN users u ON u.id = r.user_id INNER JOIN categories c ON c.id = r.category_id WHERE r.status = :status ORDER BY r.created_at DESC');
+         $stmt->execute([':status' => 'aberta']);
+         json_response(true, 'Solicitações abertas carregadas.', ['requests' => $stmt->fetchAll()], 200);
+     }
 
     $userId = (int) ($user['id'] ?? 0);
     $where = 'r.user_id = :user_id';
@@ -17,14 +17,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $where = '1 = 1';
     }
 
-    $sql = "SELECT r.id, r.title, r.description, r.quantity, r.unit, r.status, r.created_at, u.name AS institution_name, c.name AS category_name FROM requests r INNER JOIN users u ON u.id = r.user_id INNER JOIN categories c ON c.id = r.category_id WHERE {$where} ORDER BY r.created_at DESC";
+    $sql = "SELECT r.id, r.category_id, r.title, r.description, r.quantity, r.unit, r.status, r.created_at, u.name AS institution_name, c.name AS category_name FROM requests r INNER JOIN users u ON u.id = r.user_id INNER JOIN categories c ON c.id = r.category_id WHERE $where ORDER BY r.created_at DESC";
     $stmt = $pdo->prepare($sql);
     if (($user['type'] ?? '') !== 'admin') {
         $stmt->execute([':user_id' => $userId]);
     } else {
         $stmt->execute();
     }
-
+    
     json_response(true, 'Solicitações carregadas.', ['requests' => $stmt->fetchAll()], 200);
 }
 
@@ -38,6 +38,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (($user['type'] ?? '') !== 'instituicao') {
         json_response(false, 'Apenas instituições podem registrar solicitações.', [], 403);
     }
+
+    $institutionStmt = $pdo->prepare(
++        'SELECT status, is_validated FROM users WHERE id = :id AND type = :type LIMIT 1'
++    );
++    $institutionStmt->execute([
++        ':id' => $user['id'],
++        ':type' => 'instituicao',
++    ]);
++    $institution = $institutionStmt->fetch();
++
++    if (!$institution || $institution['status'] !== 'ativo' || (int) $institution['is_validated'] !== 1) {
++        json_response(false, 'Apenas instituições validadas podem registrar solicitações.', [], 403);
++    }
 
     $categoryId = (int) ($data['category_id'] ?? 0);
     $title = normalize_string($data['title'] ?? '');
